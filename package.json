@@ -1,0 +1,47 @@
+{
+  "name": "google-it",
+  "version": "0.0.1",
+  "description": "MCP Tool, that can utilize multiple search engines and processing to provide AI ready results",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "google-it": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "node test-search.mjs",
+    "playwright:install": "playwright install chromium",
+    "playwright:install-deps": "playwright install-deps chromium"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luka-dev/google-it.git"
+  },
+  "author": "luka-dev",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/luka-dev/google-it/issues"
+  },
+  "homepage": "https://github.com/luka-dev/google-it#readme",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.56",
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "@types/pdf-parse": "^1.1.5",
+    "cheerio": "^1.0.0",
+    "express": "^4.21.2",
+    "pdf-parse": "^2.3.0",
+    "playwright": "^1.55.1",
+    "turndown": "^7.2.1",
+    "turndown-plugin-gfm": "^1.0.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.6.2",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2022", // Or a more recent ES version compatible with your Node.js runtime
+    "module": "nodenext", // Or "esnext" for ESM modules if your Node.js version supports it and you configure package.json accordingly
+    "moduleResolution": "nodenext",
+    "lib": [
+      "es2022",
+      "dom"
+    ], // Or a more recent ES version compatible with your Node.js runtime
+    "outDir": "./dist", // Output directory for compiled JavaScript files
+    "rootDir": "./src", // Root directory of your TypeScript source files
+    "strict": true, // Enables a wide range of type-checking validation rules
+    "esModuleInterop": true, // Enables compatibility with CommonJS modules when importing ES modules
+    "skipLibCheck": true, // Skips type checking of declaration files
+    "forceConsistentCasingInFileNames": true, // Ensures consistent file casing on case-insensitive file systems
+    "resolveJsonModule": true, // Allows importing JSON modules
+    "sourceMap": true // Generates source maps for debugging
+  },
+  "include": ["src/**/*.ts"], // Files to include in the compilation
+  "exclude": ["node_modules", "dist"] // Files to exclude from the compilation
+}
