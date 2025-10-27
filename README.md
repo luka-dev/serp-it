@@ -3,13 +3,13 @@
 google-it is an MCP (Model Context Protocol) server that exposes web search and optional page rendering capabilities through a simple stdio interface.
 
 ## Features
-- Multi-engine search across AOL, Brave, Bing, DuckDuckGo, Yahoo, Startpage, and Yandex.
-- Markdown page rendering via headless Chromium.
-- Automatic PDF detection and text extraction.
-- Browser pooling for efficient Playwright usage.
-- Locale-aware requests using standard region codes such as `en-US` or `de-DE`.
-- Deduplication to merge identical hits from multiple engines.
-- Dockerfile and scripts ready for supergateway deployments.
+- 🔍 **Multi-Engine Search**: Aggregates results from 7 search engines (AOL, Brave, Bing, DuckDuckGo, Yahoo, Startpage, Yandex)
+- 📄 **PDF Support**: Automatically detects and extracts text from PDF documents
+- 🌐 **Page Rendering**: Converts web pages to Markdown using headless Chromium
+- ♻️ **Browser Pooling**: Efficient browser instance management for better performance
+- 🗺️ **Region Support**: Search with locale/region codes (e.g., en-US, en-GB)
+- 🔄 **Result Deduplication**: Merges duplicate results across engines
+- 📦 **Docker Ready**: Includes Dockerfile for deployment with supergateway
 
 ## AOL Search Integration
 The AOL search engine often flies under the radar but returns unique SERP blends that combine Yahoo ranking signals with syndicated content. google-it includes first-class AOL support with the following behavior:
