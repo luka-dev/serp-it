@@ -1,6 +1,6 @@
-# google-it
+# serp-it
 
-google-it is an MCP (Model Context Protocol) server that exposes web search and optional page rendering capabilities through a simple stdio interface.
+serp-it is an MCP (Model Context Protocol) server that exposes web search and optional page rendering capabilities through a simple stdio interface.
 
 ## Features
 - 🔍 **Multi-Engine Search**: Aggregates results from 7 search engines (AOL, Brave, Bing, DuckDuckGo, Yahoo, Startpage, Yandex)
@@ -12,7 +12,7 @@ google-it is an MCP (Model Context Protocol) server that exposes web search and 
 - 📦 **Docker Ready**: Includes Dockerfile for deployment with supergateway
 
 ## AOL Search Integration
-The AOL search engine often flies under the radar but returns unique SERP blends that combine Yahoo ranking signals with syndicated content. google-it includes first-class AOL support with the following behavior:
+The AOL search engine often flies under the radar but returns unique SERP blends that combine Yahoo ranking signals with syndicated content. serp-it includes first-class AOL support with the following behavior:
 - Requests are issued against `https://search.aol.com/aol/search` with JavaScript disabled (`nojs=1`) so that results are stable for scraping.
 - Region hints are translated into `Accept-Language` headers (`en_US` -> `en-US`), giving you localized snippets where AOL supports them.
 - Result URLs are unwrapped with the same redirect decoder used for Yahoo, ensuring clean, direct links instead of AOL's tracking intermediaries.
@@ -84,8 +84,8 @@ npm test
 ## Docker Deployment
 ### With supergateway
 ```bash
-docker build -t google-it-mcp .
-docker run -p 8080:8080 google-it-mcp
+docker build -t serp-it-mcp .
+docker run -p 8080:8080 serp-it-mcp
 ```
 The container image bundles the MCP server alongside supergateway to expose SSE/HTTP endpoints on port 8080.
 
@@ -99,9 +99,9 @@ Add the server to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "google-it": {
+    "serp-it": {
       "command": "node",
-      "args": ["/path/to/google-it/dist/index.js"]
+      "args": ["/path/to/serp-it/dist/index.js"]
     }
   }
 }
@@ -148,4 +148,4 @@ await client.connect(transport);
 ISC
 
 ## Repository
-https://github.com/luka-dev/google-it
+https://github.com/luka-dev/serp-it
