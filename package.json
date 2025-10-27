@@ -1,6 +1,6 @@
 {
   "name": "google-it",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "MCP Tool, that can utilize multiple search engines and processing to provide AI ready results",
   "keywords": [
     "mcp",
