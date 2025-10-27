@@ -1,6 +1,6 @@
 {
   "name": "serp-it",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP Tool, that can utilize multiple search engines and processing to provide AI ready results",
   "keywords": [
     "mcp",
