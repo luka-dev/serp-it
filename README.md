@@ -94,8 +94,8 @@ The container image bundles the MCP server alongside supergateway to expose SSE/
 - `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD`: Set to `1` to reuse a preinstalled browser.
 
 ## Configuration
-### Claude Desktop
-Add the server to `claude_desktop_config.json`:
+### Claude Desktop (direct stdio)
+Add the server to `claude_desktop_config.json` when running it locally via `node`:
 ```json
 {
   "mcpServers": {
@@ -106,6 +106,34 @@ Add the server to `claude_desktop_config.json`:
   }
 }
 ```
+
+### Claude Desktop (Docker + supergateway SSE)
+When you run the provided container (or `start-gateway.sh`), supergateway exposes an SSE bridge at `http://localhost:8080/sse`. Point Claude Desktop at that endpoint by updating `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "serp-it-docker": {
+      "type": "sse",
+      "url": "http://localhost:8080/sse"
+    }
+  }
+}
+```
+Adjust the host/port if you map the container differently. You can also add a `headers` object inside the block if your gateway requires authentication.
+
+### Claude Desktop (spawn with npx)
+You can let Claude Desktop launch the server through `npx`, which downloads (or reuses) the published package on demand:
+```json
+{
+  "mcpServers": {
+    "serp-it": {
+      "command": "npx",
+      "args": ["-y", "serp-it"]
+    }
+  }
+}
+```
+If you are working from a clone of this repository, run `npm run build` first so that the `serp-it` binary points at `dist/index.js`.
 
 ### Generic MCP Client (TypeScript)
 ```typescript
