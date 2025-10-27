@@ -24,7 +24,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "google-it": "dist/index.js"
+    "serp-it": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -38,7 +38,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/luka-dev/google-it.git"
+    "url": "git+https://github.com/luka-dev/serp-it.git"
   },
   "author": "luka-dev",
   "license": "ISC",
