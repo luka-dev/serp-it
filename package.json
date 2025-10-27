@@ -43,9 +43,9 @@
   "author": "luka-dev",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/luka-dev/google-it/issues"
+    "url": "https://github.com/luka-dev/serp-it/issues"
   },
-  "homepage": "https://github.com/luka-dev/google-it#readme",
+  "homepage": "https://github.com/luka-dev/serp-it#readme",
   "dependencies": {
     "@napi-rs/canvas": "^0.1.56",
     "@modelcontextprotocol/sdk": "^1.19.1",
