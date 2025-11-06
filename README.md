@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/luka-dev-serp-it-badge.png)](https://mseep.ai/app/luka-dev-serp-it)
+
 # serp-it
 
 serp-it is an MCP (Model Context Protocol) server that exposes web search and optional page rendering capabilities through a simple stdio interface.
