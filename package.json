@@ -47,13 +47,15 @@
   },
   "homepage": "https://github.com/luka-dev/serp-it#readme",
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.56",
     "@modelcontextprotocol/sdk": "^1.19.1",
+    "@napi-rs/canvas": "^0.1.56",
     "@types/pdf-parse": "^1.1.5",
     "cheerio": "^1.0.0",
     "express": "^4.21.2",
     "pdf-parse": "^2.3.0",
+    "pdf-to-img": "^5.0.0",
     "playwright": "^1.55.1",
+    "tesseract.js": "^7.0.0",
     "turndown": "^7.2.1",
     "turndown-plugin-gfm": "^1.0.2",
     "zod": "^3.25.76"
