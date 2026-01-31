@@ -6,10 +6,11 @@ import { z } from 'zod';
 import { searchAllEngines } from './SearchAggregator.js';
 import { renderPageToMarkdown } from './PageRenderer.js';
 import { closeBrowserPool } from './BrowserPool.js';
+import { cleanupOcr } from './PdfParser.js';
 
 const server = new McpServer({
-  name: 'google-it',
-  version: '0.0.1',
+  name: 'serp-it',
+  version: '1.0.1',
 });
 
 const searchResultSchema = z.object({
@@ -39,15 +40,216 @@ const fetchResponseSchema = z.object({
   markdown: z.string().describe('Page content rendered as Markdown.'),
 });
 
+// MCP Resource: Server capabilities
+server.resource(
+  'capabilities',
+  'serp-it://capabilities',
+  {
+    description: 'Information about available search engines, features, and limits',
+    mimeType: 'application/json',
+  },
+  async () => ({
+    contents: [
+      {
+        uri: 'serp-it://capabilities',
+        mimeType: 'application/json',
+        text: JSON.stringify(
+          {
+            engines: ['brave', 'duckduckgo', 'bing', 'yahoo', 'aol', 'startpage', 'yandex'],
+            features: {
+              multiEngineSearch: true,
+              urlDeduplication: true,
+              pageRendering: true,
+              pdfSupport: true,
+              regionSupport: true,
+            },
+            limits: {
+              maxQueryLength: 500,
+              maxFetchResults: 100,
+              maxMarkdownLength: 40000,
+            },
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  }),
+);
 
-function renderSummary(results: Array<{ title: string; url: string; sources: string[]; snippet: string }>): string {
-  return results
-    .map((item, index) => {
-      const engines = item.sources.join(', ');
-      const snippet = item.snippet ? `\n${item.snippet}` : '';
-      return `${index + 1}. [${engines}] ${item.title}\n${item.url}${snippet}`;
-    })
-    .join('\n\n');
+// MCP Prompts: Predefined search patterns for AI
+server.prompt(
+  'research',
+  'Comprehensive research on a topic with full page content',
+  {
+    topic: z.string().describe('Research topic to investigate'),
+    depth: z.number().optional().describe('Number of sources to fetch (1-20). Default: 5'),
+  },
+  async ({ topic, depth }) => ({
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Research "${topic}" thoroughly. Use the search_fetch tool with maxFetch=${depth || 5} to gather comprehensive information from multiple sources. Analyze and synthesize the findings.`,
+        },
+      },
+    ],
+  }),
+);
+
+server.prompt(
+  'fact-check',
+  'Verify a claim using multiple sources',
+  {
+    claim: z.string().describe('Statement or claim to verify'),
+  },
+  async ({ claim }) => ({
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Fact-check this claim: "${claim}". Use the search tool to find relevant sources, then use fetch on the most authoritative ones to verify accuracy. Cite your sources.`,
+        },
+      },
+    ],
+  }),
+);
+
+server.prompt(
+  'compare-sources',
+  'Compare how different sources cover a topic',
+  {
+    query: z.string().describe('Topic to compare across sources'),
+  },
+  async ({ query }) => ({
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Search for "${query}" and compare how different sources cover this topic. Use search_fetch to get content from multiple sources, then analyze differences in perspective, coverage, and conclusions.`,
+        },
+      },
+    ],
+  }),
+);
+
+const ENGINES_COUNT = 7;
+
+function getConfidenceLevel(sourceCount: number): string {
+  if (sourceCount >= 3) return 'High';
+  if (sourceCount >= 2) return 'Medium';
+  return 'Low';
+}
+
+function renderSearchOutput(
+  results: Array<{ title: string; url: string; sources: string[]; snippet: string }>,
+  metadata: {
+    query: string;
+    region: string;
+    enginesSucceeded: number;
+    timestamp: string;
+  },
+): string {
+  const lines: string[] = [];
+
+  // Metadata section
+  lines.push('<search-metadata>');
+  lines.push(`Query: "${metadata.query}"`);
+  lines.push(`Region: ${metadata.region}`);
+  lines.push(`Results: ${results.length} found`);
+  lines.push(`Engines: ${metadata.enginesSucceeded}/${ENGINES_COUNT} succeeded`);
+  lines.push(`Timestamp: ${metadata.timestamp}`);
+  lines.push('</search-metadata>');
+  lines.push('');
+
+  if (!results.length) {
+    lines.push('<search-results>');
+    lines.push('No results found.');
+    lines.push('</search-results>');
+    return lines.join('\n');
+  }
+
+  // Results section - sort by source count (confidence)
+  lines.push('<search-results>');
+  lines.push('');
+
+  const sorted = [...results].sort((a, b) => b.sources.length - a.sources.length);
+
+  for (const [index, item] of sorted.entries()) {
+    const confidence = getConfidenceLevel(item.sources.length);
+    const sourceList = item.sources.join(', ');
+
+    lines.push(`## Result ${index + 1} (${confidence} Confidence)`);
+    lines.push(`**Title:** ${item.title}`);
+    lines.push(`**URL:** ${item.url}`);
+    lines.push(`**Sources:** ${sourceList} (${item.sources.length} engine${item.sources.length > 1 ? 's' : ''})`);
+    if (item.snippet) {
+      lines.push(`**Snippet:** ${item.snippet}`);
+    }
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+  }
+
+  lines.push('</search-results>');
+
+  // Guidance section
+  const highConfidence = sorted.filter((r) => r.sources.length >= 3);
+  lines.push('');
+  lines.push('<search-guidance>');
+  lines.push('- Results sorted by confidence (engine agreement)');
+  if (highConfidence.length > 0) {
+    lines.push(`- High confidence results: #${highConfidence.map((_, i) => i + 1).join(', #')}`);
+  }
+  lines.push('- Use "fetch" tool on URLs for full page content');
+  lines.push('</search-guidance>');
+
+  return lines.join('\n');
+}
+
+function renderFetchOutput(
+  url: string,
+  title: string,
+  markdown: string,
+  metadata: { fetchedAt: string; contentLength: number; truncated: boolean },
+): string {
+  const lines: string[] = [];
+
+  lines.push('<page-metadata>');
+  lines.push(`URL: ${url}`);
+  lines.push(`Title: ${title}`);
+  lines.push(`Fetched: ${metadata.fetchedAt}`);
+  lines.push(`Content: ${metadata.contentLength} characters${metadata.truncated ? ' (truncated)' : ''}`);
+  lines.push('</page-metadata>');
+  lines.push('');
+  lines.push('<page-content>');
+  lines.push('');
+  lines.push(markdown);
+  lines.push('');
+  lines.push('</page-content>');
+
+  return lines.join('\n');
+}
+
+function renderErrorOutput(toolName: string, error: string, context: Record<string, string>): string {
+  const lines: string[] = [];
+  lines.push('<error>');
+  lines.push(`Tool: ${toolName}`);
+  lines.push(`Error: ${error}`);
+  for (const [key, value] of Object.entries(context)) {
+    lines.push(`${key}: ${value}`);
+  }
+  lines.push('</error>');
+  lines.push('');
+  lines.push('<error-guidance>');
+  lines.push('- Check if the query/URL is valid');
+  lines.push('- Network issues may be temporary - retry may help');
+  lines.push('- Try alternative search terms or different URL');
+  lines.push('</error-guidance>');
+  return lines.join('\n');
 }
 
 function truncateMarkdown(markdown: string, limit = 40_000): string {
@@ -94,17 +296,30 @@ server.registerTool(
   'search',
   {
     title: 'Web Search',
-    description: 'Fetch search results from multiple engines and merge them. Wrap the most important keywords in quotes (\").',
+    description:
+      'Search the web across multiple engines (Brave, DuckDuckGo, Bing, Yahoo, AOL, Startpage, Yandex) and return deduplicated results. Use this for quick discovery of relevant URLs without fetching page content. Wrap important keywords in quotes for exact matching.',
     inputSchema: {
-      query: z.string().min(1).max(500).describe('Text to search for.'),
+      query: z
+        .string()
+        .min(1)
+        .max(500)
+        .describe(
+          'Search query. Use quotes for exact phrases: "climate change" impact 2024. Supports standard search operators.',
+        ),
       region: z
         .string()
         .min(2)
         .max(16)
         .optional()
-        .describe('Optional locale code such as en-US.'),
+        .describe('Locale code for regional results. Examples: en-US, fr-FR, de-DE, ja-JP. Defaults to en-US.'),
     },
     outputSchema: searchResponseSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ query, region }) => {
     const regionCode = region?.trim() || 'en-US';
@@ -116,19 +331,19 @@ server.registerTool(
         ...(engineErrors.length ? { engineErrors } : {}),
       };
 
-      const summary = renderSummary(results);
+      const metadata = {
+        query,
+        region: regionCode,
+        enginesSucceeded: ENGINES_COUNT - engineErrors.length,
+        timestamp: new Date().toISOString(),
+      };
 
-      const content = [] as { type: 'text'; text: string }[];
-
-      if (summary) {
-        content.push({ type: 'text', text: summary });
-      } else {
-        content.push({ type: 'text', text: 'No results found.' });
-      }
+      const output = renderSearchOutput(results, metadata);
+      const content: { type: 'text'; text: string }[] = [{ type: 'text', text: output }];
 
       if (engineErrors.length) {
-        const errorText = engineErrors.map((error) => `- ${error}`).join('\n');
-        content.push({ type: 'text', text: `Engine errors:\n${errorText}` });
+        const errorText = engineErrors.map((e) => `- ${e}`).join('\n');
+        content.push({ type: 'text', text: `<engine-errors>\n${errorText}\n</engine-errors>` });
       }
 
       return {
@@ -142,7 +357,7 @@ server.registerTool(
         content: [
           {
             type: 'text',
-            text: `Search failed: ${message}`,
+            text: renderErrorOutput('search', message, { query, region: region || 'en-US' }),
           },
         ],
       };
@@ -155,24 +370,36 @@ server.registerTool(
   {
     title: 'Web Search With Page Capture',
     description:
-      'Search the web, then render the top results with a headless Chrome browser and convert them to Markdown for downstream consumption.',
+      'Search the web and automatically fetch/render the top results as Markdown. Use this when you need both search results AND their full page content in one call. Best for research tasks requiring deep content analysis. Note: This is slower than "search" as it renders pages with a headless browser.',
     inputSchema: {
-      query: z.string().min(1).max(500).describe('Text to search for.'),
+      query: z
+        .string()
+        .min(1)
+        .max(500)
+        .describe(
+          'Search query. Use quotes for exact phrases: "climate change" impact 2024. Supports standard search operators.',
+        ),
       region: z
         .string()
         .min(2)
         .max(16)
         .optional()
-        .describe('Optional locale code such as en-US.'),
+        .describe('Locale code for regional results. Examples: en-US, fr-FR, de-DE, ja-JP. Defaults to en-US.'),
       maxFetch: z
         .number()
         .int()
         .min(1)
         .max(100)
         .optional()
-        .describe('Maximum number of results to render. Defaults to 10.'),
+        .describe('Number of search results to fetch and render (1-100). Higher values = more content but slower. Default: 10.'),
     },
     outputSchema: searchFetchResponseSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
   },
   async ({ query, region, maxFetch }) => {
     const regionCode = region?.trim() || 'en-US';
@@ -191,34 +418,42 @@ server.registerTool(
         ...(fetchErrors.length ? { fetchErrors } : {}),
       } satisfies z.infer<typeof searchFetchResponseSchema>;
 
-      const summary = renderSummary(results);
-      const content = [] as { type: 'text'; text: string }[];
+      const metadata = {
+        query,
+        region: regionCode,
+        enginesSucceeded: ENGINES_COUNT - engineErrors.length,
+        timestamp: new Date().toISOString(),
+      };
 
-      if (summary) {
-        content.push({ type: 'text', text: summary });
-      }
+      const content: { type: 'text'; text: string }[] = [];
 
+      // Search results summary
+      content.push({ type: 'text', text: renderSearchOutput(results, metadata) });
+
+      // Page contents
       for (const item of enriched.slice(0, fetchLimit)) {
-        if (!item.markdown) {
-          continue;
-        }
+        if (!item.markdown) continue;
 
-        const heading = `# ${item.title}\n${item.url}`;
-        content.push({ type: 'text', text: `${heading}\n\n${item.markdown}` });
+        const pageOutput = renderFetchOutput(item.url, item.title, item.markdown, {
+          fetchedAt: new Date().toISOString(),
+          contentLength: item.markdown.length,
+          truncated: item.markdown.includes('... (truncated)'),
+        });
+        content.push({ type: 'text', text: pageOutput });
       }
 
-      if (!content.length) {
-        content.push({ type: 'text', text: 'Search completed but no content was captured.' });
+      if (content.length === 1) {
+        content.push({ type: 'text', text: '<search-notice>No page content was captured.</search-notice>' });
       }
 
       if (engineErrors.length) {
-        const errorText = engineErrors.map((error) => `- ${error}`).join('\n');
-        content.push({ type: 'text', text: `Engine errors:\n${errorText}` });
+        const errorText = engineErrors.map((e) => `- ${e}`).join('\n');
+        content.push({ type: 'text', text: `<engine-errors>\n${errorText}\n</engine-errors>` });
       }
 
       if (fetchErrors.length) {
-        const errorText = fetchErrors.map((error) => `- ${error}`).join('\n');
-        content.push({ type: 'text', text: `Fetch errors:\n${errorText}` });
+        const errorText = fetchErrors.map((e) => `- ${e}`).join('\n');
+        content.push({ type: 'text', text: `<fetch-errors>\n${errorText}\n</fetch-errors>` });
       }
 
       return {
@@ -232,7 +467,7 @@ server.registerTool(
         content: [
           {
             type: 'text',
-            text: `Search fetch failed: ${message}`,
+            text: renderErrorOutput('search_fetch', message, { query, region: region || 'en-US' }),
           },
         ],
       };
@@ -245,33 +480,41 @@ server.registerTool(
   {
     title: 'Fetch and Render Single Page',
     description:
-      'Fetch a single URL and render it to Markdown using a headless Chrome browser. Supports both HTML pages and PDF documents.',
+      'Fetch a single URL and render its content as Markdown. Supports HTML pages and PDF documents. Use this to read a specific page you already know the URL for. For discovering URLs, use "search" first.',
     inputSchema: {
       url: z
         .string()
         .url()
-        .describe('The URL to fetch and render.'),
+        .describe('The URL to fetch and render. Must be a valid HTTP/HTTPS URL.'),
     },
     outputSchema: fetchResponseSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
   },
   async ({ url }) => {
     try {
       const { markdown } = await renderPageToMarkdown(url);
       const truncatedMarkdown = truncateMarkdown(markdown);
+      const isTruncated = truncatedMarkdown.includes('... (truncated)');
 
       const structuredContent = {
         url,
         markdown: truncatedMarkdown,
       } satisfies z.infer<typeof fetchResponseSchema>;
 
+      const output = renderFetchOutput(url, url, truncatedMarkdown, {
+        fetchedAt: new Date().toISOString(),
+        contentLength: truncatedMarkdown.length,
+        truncated: isTruncated,
+      });
+
       return {
         structuredContent,
-        content: [
-          {
-            type: 'text',
-            text: `# ${url}\n\n${truncatedMarkdown}`,
-          },
-        ],
+        content: [{ type: 'text', text: output }],
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -280,7 +523,7 @@ server.registerTool(
         content: [
           {
             type: 'text',
-            text: `Fetch failed: ${message}`,
+            text: renderErrorOutput('fetch', message, { url }),
           },
         ],
       };
@@ -291,6 +534,7 @@ server.registerTool(
 const shutdown = async () => {
   try {
     await closeBrowserPool();
+    await cleanupOcr();
     await server.close();
   } catch (error) {
     console.error('Error shutting down MCP server:', error);
@@ -305,11 +549,11 @@ process.once('SIGTERM', shutdown);
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('google-it MCP server is ready for requests.');
+  console.error('serp-it MCP server is ready for requests.');
 }
 
 main().catch((error) => {
-  console.error('Google-It MCP crashed:', error);
+  console.error('serp-it MCP crashed:', error);
   process.exit(1);
 });
 
