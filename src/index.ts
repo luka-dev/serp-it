@@ -10,7 +10,7 @@ import { cleanupOcr } from './PdfParser.js';
 
 const server = new McpServer({
   name: 'serp-it',
-  version: '1.0.1',
+  version: '1.0.2',
 });
 
 const searchResultSchema = z.object({
